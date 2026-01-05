@@ -10,162 +10,128 @@
 <script src="//unpkg.com/xgplayer@3.0.14/dist/index.min.js"></script>
 
 <style>
-html,body{
-    margin:0;
-    padding:0;
-    height:100%;
-    background:#000;
-    overflow:hidden;
-}
-#player-wrapper{
-    position:fixed;
-    inset:0;
-    background:#000;
-}
-#xgplayer{
-    width:100%;
-    height:100%;
-}
+html,body{margin:0;height:100%;background:#000}
+#player-container{position:fixed;inset:0;background:black}
+#xgplayer{width:100%;height:100%}
 #subtitle{
-    position:absolute;
-    bottom:80px;
-    width:100%;
-    text-align:center;
-    z-index:50;
-    pointer-events:none;
+ position:absolute;
+ bottom:80px;
+ width:100%;
+ text-align:center;
+ color:white;
+ font-size:18px;
+ pointer-events:none;
+ z-index:50
 }
-.episode-card.active{
-    background:#ec4899;
-    color:#fff;
-    font-weight:bold;
+#subtitle span{
+ background:rgba(0,0,0,.5);
+ padding:4px 8px;
+ border-radius:4px
 }
 </style>
 </head>
 
 <body>
 
-<!-- FULLSCREEN PLAYER -->
-<div id="player-wrapper">
-    <div id="xgplayer"></div>
-    <div id="subtitle" class="text-white text-lg font-semibold"></div>
-
-    <!-- OPEN EPISODE -->
-    <button id="openEpisode"
-        class="absolute right-3 bottom-24 z-50 bg-black/60 text-white px-3 py-2 rounded">
-        Episode
-    </button>
-</div>
-
-<!-- EPISODE PANEL -->
-<div id="episodePanel"
-     class="fixed bottom-0 left-0 right-0 h-[45%] bg-white z-[100]
-            translate-y-full transition-transform duration-300">
-    <div class="p-3 flex justify-between items-center border-b">
-        <b>Episode</b>
-        <button id="closeEpisode">Tutup</button>
-    </div>
-    <div class="p-3 grid grid-cols-5 gap-2 overflow-y-auto h-full">
-        <% episodes.forEach((ep,i)=>{ %>
-        <button
-            class="episode-card border rounded p-2 text-sm"
-            data-index="<%= i %>"
-            data-url="<%= ep.playUrl %>">
-            Ep <%= ep.episodeNo %>
-        </button>
-        <% }) %>
-    </div>
+<div id="player-container">
+  <div id="xgplayer"></div>
+  <div id="subtitle"></div>
 </div>
 
 <script>
 document.addEventListener("DOMContentLoaded",()=>{
 
-let player=null;
-let currentIndex=0;
-const episodes=[...document.querySelectorAll(".episode-card")];
+/* ===================== DATA ===================== */
+const episodes = <%- JSON.stringify(episodes) %>;
+let currentIndex = episodes.findIndex(e=>e.episodeNo==<%= selectedEpisode.episodeNo %>);
+let player;
 
-/* INIT PLAYER */
-function initPlayer(index){
-    if(!episodes[index]) return;
-    currentIndex=index;
+/* ===================== PLAYER ===================== */
+function initPlayer(url,poster,sub){
+ if(player){player.destroy();player=null}
+ document.getElementById("xgplayer").innerHTML="";
 
-    episodes.forEach(b=>b.classList.remove("active"));
-    episodes[index].classList.add("active");
+ player=new Player({
+   id:"xgplayer",
+   url,
+   poster,
+   autoplay:true,
+   muted:true,
+   playsinline:true,
+   controls:true,
+   videoInit:true
+ });
 
-    if(player) player.destroy();
+ if(sub) loadSubtitle(sub);
 
-    player=new Player({
-        id:"xgplayer",
-        url:episodes[index].dataset.url,
-        autoplay:true,
-        muted:true,
-        playsinline:true,
-        fullscreen:true
+ player.on("ended",()=>nextEpisode());
+}
+
+/* ===================== SUBTITLE ===================== */
+let subs=[];
+function loadSubtitle(url){
+ fetch(url).then(r=>r.text()).then(vtt=>{
+  subs=[];
+  const p=/(\d+:\d+:\d+\.\d+)\s-->\s(\d+:\d+:\d+\.\d+)\s([\s\S]*?)(?=\n\n|$)/g;
+  let m;
+  while(m=p.exec(vtt)){
+    subs.push({
+     s:toSec(m[1]),
+     e:toSec(m[2]),
+     t:m[3].replace(/\n/g,"<br>")
     });
-
-    // AUTO NEXT
-    player.on("ended",()=>nextEpisode());
+  }
+ });
+ player.on("timeupdate",()=>{
+  const t=player.currentTime;
+  const c=subs.find(s=>t>=s.s&&t<=s.e);
+  document.getElementById("subtitle").innerHTML=c?`<span>${c.t}</span>`:"";
+ });
+}
+function toSec(t){
+ const [h,m,s]=t.split(":");
+ return +h*3600+ +m*60+parseFloat(s);
 }
 
-/* FIRST LOAD */
-initPlayer(0);
-
-/* NEXT / PREV */
-function nextEpisode(){
-    if(currentIndex < episodes.length-1){
-        initPlayer(currentIndex+1);
-    }
-}
-function prevEpisode(){
-    if(currentIndex > 0){
-        initPlayer(currentIndex-1);
-    }
+/* ===================== EPISODE CONTROL ===================== */
+function playEpisode(i){
+ if(i<0||i>=episodes.length)return;
+ currentIndex=i;
+ location.href=`/api/drama/<%= id %>/`+episodes[i].episodeNo;
 }
 
-/* EPISODE PANEL */
-const panel=document.getElementById("episodePanel");
-document.getElementById("openEpisode").onclick=()=>{
-    panel.style.transform="translateY(0)";
-};
-document.getElementById("closeEpisode").onclick=()=>{
-    panel.style.transform="translateY(100%)";
-};
+function nextEpisode(){ playEpisode(currentIndex+1); }
+function prevEpisode(){ playEpisode(currentIndex-1); }
 
-/* CLICK EPISODE */
-episodes.forEach(btn=>{
-    btn.onclick=()=>{
-        initPlayer(parseInt(btn.dataset.index));
-        panel.style.transform="translateY(100%)";
-    };
-});
-
-/* SWIPE UP / DOWN */
+/* ===================== SWIPE ===================== */
 let startY=0;
-let endY=0;
-
 document.addEventListener("touchstart",e=>{
-    startY=e.touches[0].clientY;
+ startY=e.touches[0].clientY;
 });
-
 document.addEventListener("touchend",e=>{
-    endY=e.changedTouches[0].clientY;
-    let diff=startY-endY;
-
-    if(Math.abs(diff)>60){
-        if(diff>0){
-            nextEpisode();   // swipe up
-        }else{
-            prevEpisode();   // swipe down
-        }
-    }
+ let endY=e.changedTouches[0].clientY;
+ let diff=startY-endY;
+ if(Math.abs(diff)>80){
+   diff>0?nextEpisode():prevEpisode();
+ }
 });
 
-/* FORCE FULLSCREEN */
-setTimeout(()=>{
-    const el=document.documentElement;
-    if(el.requestFullscreen){
-        el.requestFullscreen().catch(()=>{});
-    }
-},800);
+/* ===================== FULLSCREEN ===================== */
+document.addEventListener("dblclick",()=>{
+ const el=document.documentElement;
+ if(!document.fullscreenElement){
+   el.requestFullscreen();
+ }else{
+   document.exitFullscreen();
+ }
+});
+
+/* ===================== INIT ===================== */
+initPlayer(
+ "<%- playVoucher %>",
+ "<%- shortPlayCover %>",
+ "<%- subtitleUrl || '' %>"
+);
 
 });
 </script>
