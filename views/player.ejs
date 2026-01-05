@@ -90,9 +90,7 @@ body {
     <div id="subtitle"></div>
 
     <div class="mobile-controls-overlay">
-        <button id="downloadBtn" title="Download"><i class="fas fa-download text-white"></i></button>
         <button id="openSubSettings" title="Subtitle"><i class="fas fa-cog text-white"></i></button>
-        <button id="shareBtn" title="Share"><i class="fas fa-share-alt text-white"></i></button>
         <button id="openEpisodeList" title="Episode"><i class="fas fa-list-ul text-white"></i></button>
     </div>
 </div>
@@ -168,7 +166,6 @@ document.addEventListener("DOMContentLoaded", () => {
     applySubtitleStyle();
 
     function getSpanStyle(){ return `background-color: rgba(0,0,0,${subSettings.bgOpacity}); color: ${subSettings.color};`; }
-
     function saveSubSettings(){ localStorage.setItem('xgSubSettings', JSON.stringify(subSettings)); applySubtitleStyle(); }
 
     function parseVTT(data){
@@ -202,6 +199,12 @@ document.addEventListener("DOMContentLoaded", () => {
         const container=document.getElementById('xgplayer'); container.innerHTML='';
         playerInstance=new Player({id:'xgplayer', url:url, poster:poster, width:'100%', height:'100%', autoplay:true, muted:true, playsinline:true, controls:true});
         if(sub) loadSubtitles(sub, playerInstance);
+
+        // Auto next episode
+        playerInstance.on('ended', ()=>{
+            const nextEp = document.querySelector(`.episode-card.active`).nextElementSibling;
+            if(nextEp){ window.location.href = nextEp.dataset.url; }
+        });
     }
 
     if(currentVideoUrl) initPlayer(currentVideoUrl, currentPoster, currentSubUrl);
@@ -231,7 +234,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById('openSubSettings').addEventListener('click', ()=>{ subModal.classList.remove('hidden'); subModal.classList.add('flex'); updateModalInputs(); });
     document.getElementById('closeSubSettings').addEventListener('click', ()=>{ subModal.classList.add('hidden'); subModal.classList.remove('flex'); });
-    
     document.getElementById('resetSubSettings').addEventListener('click', ()=>{ subSettings={...defaultSubSettings}; saveSubSettings(); updateModalInputs(); });
 
     // Episode List
@@ -242,10 +244,25 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll('.episode-card').forEach(el=>{
         el.addEventListener('click', ()=>{ 
             const url=el.dataset.url; 
-            const epNo=el.dataset.ep;
             window.location.href=url; 
         });
     });
+
+    // Swipe up/down untuk pindah episode
+    let startY=0;
+    document.getElementById('player-container').addEventListener('touchstart', e=>{ startY = e.touches[0].clientY; });
+    document.getElementById('player-container').addEventListener('touchend', e=>{
+        const endY = e.changedTouches[0].clientY;
+        const delta = startY - endY;
+        const activeEp = document.querySelector('.episode-card.active');
+        if(Math.abs(delta) < 50) return; // swipe minimal 50px
+        if(delta>0 && activeEp.nextElementSibling){ // swipe up -> next
+            window.location.href = activeEp.nextElementSibling.dataset.url;
+        }else if(delta<0 && activeEp.previousElementSibling){ // swipe down -> prev
+            window.location.href = activeEp.previousElementSibling.dataset.url;
+        }
+    });
+
 });
 </script>
 </body>
