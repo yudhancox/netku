@@ -10,23 +10,68 @@
 <script src="//unpkg.com/xgplayer@3.0.14/dist/index.min.js"></script>
 
 <style>
-html,body{margin:0;height:100%;background:#000}
-#player-container{position:fixed;inset:0;background:black}
-#xgplayer{width:100%;height:100%}
+html,body{
+  margin:0;
+  height:100%;
+  background:black;
+  overflow:hidden;
+}
+#player-container{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100vw;
+  height:100vh;
+  background:black;
+  z-index:0;
+}
+#xgplayer{
+  width:100%;
+  height:100%;
+  background:black;
+}
 #subtitle{
- position:absolute;
- bottom:80px;
- width:100%;
- text-align:center;
- color:white;
- font-size:18px;
- pointer-events:none;
- z-index:50
+  position:absolute;
+  bottom:80px;
+  width:100%;
+  text-align:center;
+  color:white;
+  font-size:18px;
+  pointer-events:none;
+  z-index:50;
 }
 #subtitle span{
- background:rgba(0,0,0,.5);
- padding:4px 8px;
- border-radius:4px
+  background:rgba(0,0,0,0.5);
+  padding:4px 8px;
+  border-radius:4px;
+}
+
+/* overlay episode controls */
+.episode-overlay{
+  position:absolute;
+  top:0;
+  right:0;
+  left:0;
+  bottom:0;
+  z-index:60;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+  pointer-events:none;
+  padding:1rem;
+}
+.episode-overlay button{
+  pointer-events:auto;
+  margin-bottom:0.5rem;
+  background:rgba(0,0,0,0.5);
+  border-radius:9999px;
+  width:40px;
+  height:40px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:white;
+  font-size:16px;
 }
 </style>
 </head>
@@ -36,21 +81,24 @@ html,body{margin:0;height:100%;background:#000}
 <div id="player-container">
   <div id="xgplayer"></div>
   <div id="subtitle"></div>
+
+  <!-- overlay buttons -->
+  <div class="episode-overlay">
+    <button onclick="prevEpisode()" title="Prev Ep"><i class="fas fa-arrow-up"></i></button>
+    <button onclick="nextEpisode()" title="Next Ep"><i class="fas fa-arrow-down"></i></button>
+  </div>
 </div>
 
 <script>
 document.addEventListener("DOMContentLoaded",()=>{
 
-/* ===================== DATA ===================== */
 const episodes = <%- JSON.stringify(episodes) %>;
 let currentIndex = episodes.findIndex(e=>e.episodeNo==<%= selectedEpisode.episodeNo %>);
 let player;
 
-/* ===================== PLAYER ===================== */
 function initPlayer(url,poster,sub){
  if(player){player.destroy();player=null}
  document.getElementById("xgplayer").innerHTML="";
-
  player=new Player({
    id:"xgplayer",
    url,
@@ -61,13 +109,10 @@ function initPlayer(url,poster,sub){
    controls:true,
    videoInit:true
  });
-
  if(sub) loadSubtitle(sub);
-
  player.on("ended",()=>nextEpisode());
 }
 
-/* ===================== SUBTITLE ===================== */
 let subs=[];
 function loadSubtitle(url){
  fetch(url).then(r=>r.text()).then(vtt=>{
@@ -75,11 +120,7 @@ function loadSubtitle(url){
   const p=/(\d+:\d+:\d+\.\d+)\s-->\s(\d+:\d+:\d+\.\d+)\s([\s\S]*?)(?=\n\n|$)/g;
   let m;
   while(m=p.exec(vtt)){
-    subs.push({
-     s:toSec(m[1]),
-     e:toSec(m[2]),
-     t:m[3].replace(/\n/g,"<br>")
-    });
+    subs.push({s:toSec(m[1]),e:toSec(m[2]),t:m[3].replace(/\n/g,"<br>")});
   }
  });
  player.on("timeupdate",()=>{
@@ -88,50 +129,33 @@ function loadSubtitle(url){
   document.getElementById("subtitle").innerHTML=c?`<span>${c.t}</span>`:"";
  });
 }
-function toSec(t){
- const [h,m,s]=t.split(":");
- return +h*3600+ +m*60+parseFloat(s);
-}
+function toSec(t){ const [h,m,s]=t.split(":"); return +h*3600+ +m*60+parseFloat(s); }
 
-/* ===================== EPISODE CONTROL ===================== */
 function playEpisode(i){
  if(i<0||i>=episodes.length)return;
  currentIndex=i;
  location.href=`/api/drama/<%= id %>/`+episodes[i].episodeNo;
 }
-
 function nextEpisode(){ playEpisode(currentIndex+1); }
 function prevEpisode(){ playEpisode(currentIndex-1); }
 
-/* ===================== SWIPE ===================== */
+/* swipe */
 let startY=0;
-document.addEventListener("touchstart",e=>{
- startY=e.touches[0].clientY;
-});
+document.addEventListener("touchstart",e=>{ startY=e.touches[0].clientY; });
 document.addEventListener("touchend",e=>{
  let endY=e.changedTouches[0].clientY;
  let diff=startY-endY;
- if(Math.abs(diff)>80){
-   diff>0?nextEpisode():prevEpisode();
- }
+ if(Math.abs(diff)>80){ diff>0?nextEpisode():prevEpisode(); }
 });
 
-/* ===================== FULLSCREEN ===================== */
+/* double click fullscreen */
 document.addEventListener("dblclick",()=>{
  const el=document.documentElement;
- if(!document.fullscreenElement){
-   el.requestFullscreen();
- }else{
-   document.exitFullscreen();
- }
+ if(!document.fullscreenElement){ el.requestFullscreen(); }
+ else{ document.exitFullscreen(); }
 });
 
-/* ===================== INIT ===================== */
-initPlayer(
- "<%- playVoucher %>",
- "<%- shortPlayCover %>",
- "<%- subtitleUrl || '' %>"
-);
+initPlayer("<%- playVoucher %>","<%- shortPlayCover %>","<%- subtitleUrl||'' %>");
 
 });
 </script>
