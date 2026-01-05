@@ -1,164 +1,252 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title><%= shortPlayName %></title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= shortPlayName %> - Detail</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+    tailwind.config = { darkMode: "class" };
+</script>
+
 <link rel="stylesheet" href="//unpkg.com/xgplayer@3.0.14/dist/index.min.css">
-<script src="//unpkg.com/xgplayer@3.0.14/dist/index.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<script src="//unpkg.com/xgplayer@3.0.14/dist/index.min.js" charset="utf-8"></script>
 
 <style>
-html,body{
-  margin:0;
-  height:100%;
-  background:black;
-  overflow:hidden;
+body {
+    overflow-x: hidden;
+    margin: 0;
 }
-#player-container{
-  position:fixed;
-  top:0;
-  left:0;
-  width:100vw;
-  height:100vh;
-  background:black;
-  z-index:0;
+#player-container {
+    position: relative;
+    width: 100dvw;
+    height: 100dvh;
+    background-color: black;
+    overflow: hidden;
 }
-#xgplayer{
-  width:100%;
-  height:100%;
-  background:black;
+#xgplayer {
+    width: 100%;
+    height: 100%;
 }
-#subtitle{
-  position:absolute;
-  bottom:80px;
-  width:100%;
-  text-align:center;
-  color:white;
-  font-size:18px;
-  pointer-events:none;
-  z-index:50;
+#subtitle {
+    position: absolute;
+    width: 100%;
+    bottom: 80px;
+    text-align: center;
+    z-index: 50;
+    pointer-events: none;
+    transition: all 0.2s ease-out;
 }
-#subtitle span{
-  background:rgba(0,0,0,0.5);
-  padding:4px 8px;
-  border-radius:4px;
+#subtitle span {
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.25rem;
+    background-color: rgba(0,0,0,0.5);
+    color: #fff;
 }
-
-/* overlay episode controls */
-.episode-overlay{
-  position:absolute;
-  top:0;
-  right:0;
-  left:0;
-  bottom:0;
-  z-index:60;
-  display:flex;
-  flex-direction:column;
-  justify-content:flex-end;
-  pointer-events:none;
-  padding:1rem;
+.mobile-controls-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1rem 0.25rem;
+    height: 100%;
+    justify-content: flex-end;
+    align-items: center;
+    pointer-events: none;
 }
-.episode-overlay button{
-  pointer-events:auto;
-  margin-bottom:0.5rem;
-  background:rgba(0,0,0,0.5);
-  border-radius:9999px;
-  width:40px;
-  height:40px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:white;
-  font-size:16px;
+.mobile-controls-overlay button {
+    pointer-events: auto;
+    background-color: rgba(0,0,0,0.5);
+    border-radius: 9999px;
+    padding: 0.6rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.mobile-controls-overlay button:hover {
+    background-color: rgba(0,0,0,0.8);
+}
+.episode-card.active {
+    background-color: #ec4899;
+    color: white !important;
+    font-weight: bold;
+}
+.episode-card {
+    cursor: pointer;
 }
 </style>
 </head>
-
-<body>
+<body class="bg-gray-50">
 
 <div id="player-container">
-  <div id="xgplayer"></div>
-  <div id="subtitle"></div>
+    <div id="xgplayer"></div>
+    <div id="subtitle"></div>
 
-  <!-- overlay buttons -->
-  <div class="episode-overlay">
-    <button onclick="prevEpisode()" title="Prev Ep"><i class="fas fa-arrow-up"></i></button>
-    <button onclick="nextEpisode()" title="Next Ep"><i class="fas fa-arrow-down"></i></button>
-  </div>
+    <div class="mobile-controls-overlay">
+        <button id="downloadBtn" title="Download"><i class="fas fa-download text-white"></i></button>
+        <button id="openSubSettings" title="Subtitle"><i class="fas fa-cog text-white"></i></button>
+        <button id="shareBtn" title="Share"><i class="fas fa-share-alt text-white"></i></button>
+        <button id="openEpisodeList" title="Episode"><i class="fas fa-list-ul text-white"></i></button>
+    </div>
+</div>
+
+<!-- Episode List Overlay -->
+<div id="episodeListModal" class="fixed inset-0 bg-black/90 z-50 hidden overflow-y-auto p-4">
+    <div class="flex justify-between items-center mb-2">
+        <h2 class="text-white font-bold text-lg">Episode</h2>
+        <button id="closeEpisodeList" class="text-white text-2xl">&times;</button>
+    </div>
+    <div id="episodeList" class="grid grid-cols-4 gap-2">
+        <% episodes.forEach(ep => { %>
+            <div class="episode-card p-2 bg-white text-gray-800 hover:bg-pink-500 hover:text-white <% if(selectedEpisode && ep.episodeNo===selectedEpisode.episodeNo){ %> active <% } %>"
+                 data-ep="<%= ep.episodeNo %>"
+                 data-url="/api/drama/<%= id %>/<%= ep.episodeNo %>">
+                 Ep <%= ep.episodeNo %>
+            </div>
+        <% }) %>
+    </div>
+</div>
+
+<!-- Subtitle Settings Modal -->
+<div id="subtitleSettingsModal" class="fixed inset-0 bg-black/80 z-50 hidden justify-center items-center">
+    <div class="bg-white rounded-xl p-6 w-80 max-w-full">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="font-bold text-gray-800">Tampilan Subtitle</h2>
+            <button id="closeSubSettings" class="text-gray-500 text-xl">&times;</button>
+        </div>
+        <div class="space-y-4">
+            <div>
+                <label class="flex justify-between text-sm font-medium">
+                    <span>Ukuran Font</span><span id="valFontSize">18px</span>
+                </label>
+                <input type="range" id="inputFontSize" min="12" max="40" step="1" class="w-full">
+            </div>
+            <div>
+                <label class="flex justify-between text-sm font-medium">
+                    <span>Posisi (Bawah)</span><span id="valPosBottom">80px</span>
+                </label>
+                <input type="range" id="inputPosBottom" min="10" max="200" step="5" class="w-full">
+            </div>
+            <div>
+                <label class="block text-sm font-medium">Warna Teks</label>
+                <input type="color" id="inputTextColor" value="#ffffff">
+            </div>
+            <div>
+                <label class="flex justify-between text-sm font-medium">
+                    <span>Latar Belakang</span><span id="valBgOpacity">50%</span>
+                </label>
+                <input type="range" id="inputBgOpacity" min="0" max="1" step="0.1" value="0.5" class="w-full">
+            </div>
+            <button id="resetSubSettings" class="w-full py-2 text-red-500 border border-red-200 rounded">Reset</button>
+        </div>
+    </div>
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded",()=>{
+document.addEventListener("DOMContentLoaded", () => {
+    let playerInstance = null;
+    let currentVideoUrl = "<%- playVoucher || '' %>";
+    let currentPoster = "<%- shortPlayCover %>";
+    let currentSubUrl = "<%- subtitleUrl || '' %>";
+    const subEl = document.getElementById('subtitle');
 
-const episodes = <%- JSON.stringify(episodes) %>;
-let currentIndex = episodes.findIndex(e=>e.episodeNo==<%= selectedEpisode.episodeNo %>);
-let player;
+    const defaultSubSettings = { fontSize: 18, bottom: 80, color: '#ffffff', bgOpacity: 0.5 };
+    let subSettings = JSON.parse(localStorage.getItem('xgSubSettings')) || { ...defaultSubSettings };
 
-function initPlayer(url,poster,sub){
- if(player){player.destroy();player=null}
- document.getElementById("xgplayer").innerHTML="";
- player=new Player({
-   id:"xgplayer",
-   url,
-   poster,
-   autoplay:true,
-   muted:true,
-   playsinline:true,
-   controls:true,
-   videoInit:true
- });
- if(sub) loadSubtitle(sub);
- player.on("ended",()=>nextEpisode());
-}
+    function applySubtitleStyle(){
+        subEl.style.fontSize = subSettings.fontSize+'px';
+        subEl.style.bottom = subSettings.bottom+'px';
+        subEl.style.color = subSettings.color;
+    }
+    applySubtitleStyle();
 
-let subs=[];
-function loadSubtitle(url){
- fetch(url).then(r=>r.text()).then(vtt=>{
-  subs=[];
-  const p=/(\d+:\d+:\d+\.\d+)\s-->\s(\d+:\d+:\d+\.\d+)\s([\s\S]*?)(?=\n\n|$)/g;
-  let m;
-  while(m=p.exec(vtt)){
-    subs.push({s:toSec(m[1]),e:toSec(m[2]),t:m[3].replace(/\n/g,"<br>")});
-  }
- });
- player.on("timeupdate",()=>{
-  const t=player.currentTime;
-  const c=subs.find(s=>t>=s.s&&t<=s.e);
-  document.getElementById("subtitle").innerHTML=c?`<span>${c.t}</span>`:"";
- });
-}
-function toSec(t){ const [h,m,s]=t.split(":"); return +h*3600+ +m*60+parseFloat(s); }
+    function getSpanStyle(){ return `background-color: rgba(0,0,0,${subSettings.bgOpacity}); color: ${subSettings.color};`; }
 
-function playEpisode(i){
- if(i<0||i>=episodes.length)return;
- currentIndex=i;
- location.href=`/api/drama/<%= id %>/`+episodes[i].episodeNo;
-}
-function nextEpisode(){ playEpisode(currentIndex+1); }
-function prevEpisode(){ playEpisode(currentIndex-1); }
+    function saveSubSettings(){ localStorage.setItem('xgSubSettings', JSON.stringify(subSettings)); applySubtitleStyle(); }
 
-/* swipe */
-let startY=0;
-document.addEventListener("touchstart",e=>{ startY=e.touches[0].clientY; });
-document.addEventListener("touchend",e=>{
- let endY=e.changedTouches[0].clientY;
- let diff=startY-endY;
- if(Math.abs(diff)>80){ diff>0?nextEpisode():prevEpisode(); }
-});
+    function parseVTT(data){
+        const pattern=/(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})\s+([\s\S]*?)(?=\n{2,}|$)/g;
+        const result=[]; let match;
+        while((match=pattern.exec(data))!==null){
+            result.push({start:toSeconds(match[1]), end:toSeconds(match[2]), text:match[3].replace(/\n/g,"<br>")});
+        }
+        return result;
+    }
 
-/* double click fullscreen */
-document.addEventListener("dblclick",()=>{
- const el=document.documentElement;
- if(!document.fullscreenElement){ el.requestFullscreen(); }
- else{ document.exitFullscreen(); }
-});
+    function toSeconds(time){
+        const [h,m,s]=time.split(':'); const [sec,ms]=s.split('.'); return parseInt(h)*3600+parseInt(m)*60+parseFloat(sec+'.'+ms);
+    }
 
-initPlayer("<%- playVoucher %>","<%- shortPlayCover %>","<%- subtitleUrl||'' %>");
+    async function loadSubtitles(url, player){
+        if(!url){ subEl.innerHTML=""; return; }
+        try{
+            const res=await fetch(url); const text=await res.text();
+            const subtitles=parseVTT(text);
+            player.on('timeupdate', ()=>{
+                const t=player.currentTime;
+                const current=subtitles.find(s=>t>=s.start && t<=s.end);
+                subEl.innerHTML=current? `<span style="${getSpanStyle()}">${current.text}</span>`:'';
+            });
+        }catch(e){ console.error(e); subEl.innerHTML=""; }
+    }
 
+    function initPlayer(url, poster, sub){
+        if(playerInstance){ playerInstance.destroy(); playerInstance=null; }
+        const container=document.getElementById('xgplayer'); container.innerHTML='';
+        playerInstance=new Player({id:'xgplayer', url:url, poster:poster, width:'100%', height:'100%', autoplay:true, muted:true, playsinline:true, controls:true});
+        if(sub) loadSubtitles(sub, playerInstance);
+    }
+
+    if(currentVideoUrl) initPlayer(currentVideoUrl, currentPoster, currentSubUrl);
+
+    // Subtitle Settings
+    const subModal=document.getElementById('subtitleSettingsModal');
+    const inpSize=document.getElementById('inputFontSize');
+    const inpPos=document.getElementById('inputPosBottom');
+    const inpColor=document.getElementById('inputTextColor');
+    const inpBg=document.getElementById('inputBgOpacity');
+    const lblSize=document.getElementById('valFontSize');
+    const lblPos=document.getElementById('valPosBottom');
+    const lblBg=document.getElementById('valBgOpacity');
+
+    function updateModalInputs(){
+        inpSize.value=subSettings.fontSize; lblSize.textContent=subSettings.fontSize+'px';
+        inpPos.value=subSettings.bottom; lblPos.textContent=subSettings.bottom+'px';
+        inpColor.value=subSettings.color;
+        inpBg.value=subSettings.bgOpacity; lblBg.textContent=Math.round(subSettings.bgOpacity*100)+'%';
+    }
+    updateModalInputs();
+
+    inpSize.addEventListener('input', e=>{ subSettings.fontSize=parseInt(e.target.value); lblSize.textContent=subSettings.fontSize+'px'; saveSubSettings(); });
+    inpPos.addEventListener('input', e=>{ subSettings.bottom=parseInt(e.target.value); lblPos.textContent=subSettings.bottom+'px'; saveSubSettings(); });
+    inpColor.addEventListener('input', e=>{ subSettings.color=e.target.value; saveSubSettings(); });
+    inpBg.addEventListener('input', e=>{ subSettings.bgOpacity=parseFloat(e.target.value); lblBg.textContent=Math.round(subSettings.bgOpacity*100)+'%'; saveSubSettings(); });
+
+    document.getElementById('openSubSettings').addEventListener('click', ()=>{ subModal.classList.remove('hidden'); subModal.classList.add('flex'); updateModalInputs(); });
+    document.getElementById('closeSubSettings').addEventListener('click', ()=>{ subModal.classList.add('hidden'); subModal.classList.remove('flex'); });
+    
+    document.getElementById('resetSubSettings').addEventListener('click', ()=>{ subSettings={...defaultSubSettings}; saveSubSettings(); updateModalInputs(); });
+
+    // Episode List
+    const episodeListModal=document.getElementById('episodeListModal');
+    document.getElementById('openEpisodeList').addEventListener('click', ()=>{ episodeListModal.classList.remove('hidden'); });
+    document.getElementById('closeEpisodeList').addEventListener('click', ()=>{ episodeListModal.classList.add('hidden'); });
+
+    document.querySelectorAll('.episode-card').forEach(el=>{
+        el.addEventListener('click', ()=>{ 
+            const url=el.dataset.url; 
+            const epNo=el.dataset.ep;
+            window.location.href=url; 
+        });
+    });
 });
 </script>
-
 </body>
 </html>
