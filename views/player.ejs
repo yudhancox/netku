@@ -1,107 +1,171 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title><%= shortPlayName %> - Detail</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><%= shortPlayName %></title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="//unpkg.com/xgplayer@3.0.14/dist/index.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <script src="//unpkg.com/xgplayer@3.0.14/dist/index.min.js"></script>
 
 <style>
-body { overflow-x: hidden; }
-.episode-card.active { background:#ec4899;color:#fff;font-weight:bold; }
-.no-scrollbar::-webkit-scrollbar{display:none}
-#player-container{aspect-ratio:16/9;background:#000;position:relative}
-#subtitle{position:absolute;width:100%;text-align:center;pointer-events:none;z-index:50}
-.mobile-controls-overlay{position:absolute;right:0;bottom:1rem;z-index:100}
-.btn-custom-ply{background:rgba(0,0,0,.5);border-radius:9999px;padding:.6rem}
+html,body{
+    margin:0;
+    padding:0;
+    height:100%;
+    background:#000;
+    overflow:hidden;
+}
+#player-wrapper{
+    position:fixed;
+    inset:0;
+    background:#000;
+}
+#xgplayer{
+    width:100%;
+    height:100%;
+}
+#subtitle{
+    position:absolute;
+    bottom:80px;
+    width:100%;
+    text-align:center;
+    z-index:50;
+    pointer-events:none;
+}
+.episode-card.active{
+    background:#ec4899;
+    color:#fff;
+    font-weight:bold;
+}
 </style>
 </head>
 
-<body class="bg-gray-50">
+<body>
 
-<div id="player-container">
+<!-- FULLSCREEN PLAYER -->
+<div id="player-wrapper">
     <div id="xgplayer"></div>
-    <div id="subtitle" class="bottom-20 text-white text-lg font-semibold"></div>
+    <div id="subtitle" class="text-white text-lg font-semibold"></div>
 
-    <!-- MOBILE CONTROLS (TANPA DOWNLOAD & SHARE) -->
-    <div class="mobile-controls-overlay flex flex-col gap-4 lg:hidden">
-        <button id="openSubSettings" class="btn-custom-ply text-white">
-            <i class="fas fa-cog"></i>
-        </button>
-        <button class="btn-custom-ply text-white openModal">
-            <i class="fas fa-list-ul"></i>
-        </button>
+    <!-- OPEN EPISODE -->
+    <button id="openEpisode"
+        class="absolute right-3 bottom-24 z-50 bg-black/60 text-white px-3 py-2 rounded">
+        Episode
+    </button>
+</div>
+
+<!-- EPISODE PANEL -->
+<div id="episodePanel"
+     class="fixed bottom-0 left-0 right-0 h-[45%] bg-white z-[100]
+            translate-y-full transition-transform duration-300">
+    <div class="p-3 flex justify-between items-center border-b">
+        <b>Episode</b>
+        <button id="closeEpisode">Tutup</button>
     </div>
-</div>
-
-<!-- SUBTITLE SETTINGS -->
-<div id="subtitleSettingsModal" class="fixed inset-0 bg-black/80 hidden justify-center items-center z-50">
-<div class="bg-white rounded-xl p-5 w-80">
-<h2 class="font-bold mb-3">Subtitle</h2>
-
-<label class="text-sm">Ukuran</label>
-<input id="fontSize" type="range" min="12" max="40">
-
-<label class="text-sm">Posisi</label>
-<input id="posBottom" type="range" min="20" max="200">
-
-<label class="text-sm">Opacity</label>
-<input id="bgOpacity" type="range" min="0" max="1" step="0.1">
-
-<button id="closeSub" class="mt-3 w-full bg-gray-200 py-1 rounded">Tutup</button>
-</div>
+    <div class="p-3 grid grid-cols-5 gap-2 overflow-y-auto h-full">
+        <% episodes.forEach((ep,i)=>{ %>
+        <button
+            class="episode-card border rounded p-2 text-sm"
+            data-index="<%= i %>"
+            data-url="<%= ep.playUrl %>">
+            Ep <%= ep.episodeNo %>
+        </button>
+        <% }) %>
+    </div>
 </div>
 
 <script>
 document.addEventListener("DOMContentLoaded",()=>{
 
 let player=null;
-const subtitle=document.getElementById("subtitle");
+let currentIndex=0;
+const episodes=[...document.querySelectorAll(".episode-card")];
 
-let sub={
-    fontSize:18,
-    bottom:80,
-    bg:0.5
-};
+/* INIT PLAYER */
+function initPlayer(index){
+    if(!episodes[index]) return;
+    currentIndex=index;
 
-function applySub(){
-    subtitle.style.fontSize=sub.fontSize+"px";
-    subtitle.style.bottom=sub.bottom+"px";
-}
+    episodes.forEach(b=>b.classList.remove("active"));
+    episodes[index].classList.add("active");
 
-function initPlayer(url,poster){
     if(player) player.destroy();
+
     player=new Player({
         id:"xgplayer",
-        url:url,
-        poster:poster,
+        url:episodes[index].dataset.url,
         autoplay:true,
         muted:true,
-        playsinline:true
+        playsinline:true,
+        fullscreen:true
     });
+
+    // AUTO NEXT
+    player.on("ended",()=>nextEpisode());
 }
 
-initPlayer("<%- playVoucher %>","<%- shortPlayCover %>");
+/* FIRST LOAD */
+initPlayer(0);
 
-/* SUBTITLE MODAL */
-const modal=document.getElementById("subtitleSettingsModal");
-document.getElementById("openSubSettings").onclick=()=>modal.classList.remove("hidden");
-document.getElementById("closeSub").onclick=()=>modal.classList.add("hidden");
+/* NEXT / PREV */
+function nextEpisode(){
+    if(currentIndex < episodes.length-1){
+        initPlayer(currentIndex+1);
+    }
+}
+function prevEpisode(){
+    if(currentIndex > 0){
+        initPlayer(currentIndex-1);
+    }
+}
 
-document.getElementById("fontSize").oninput=e=>{
-    sub.fontSize=e.target.value;applySub();
+/* EPISODE PANEL */
+const panel=document.getElementById("episodePanel");
+document.getElementById("openEpisode").onclick=()=>{
+    panel.style.transform="translateY(0)";
 };
-document.getElementById("posBottom").oninput=e=>{
-    sub.bottom=e.target.value;applySub();
+document.getElementById("closeEpisode").onclick=()=>{
+    panel.style.transform="translateY(100%)";
 };
-document.getElementById("bgOpacity").oninput=e=>{
-    sub.bg=e.target.value;
-    subtitle.style.background=`rgba(0,0,0,${sub.bg})`;
-};
+
+/* CLICK EPISODE */
+episodes.forEach(btn=>{
+    btn.onclick=()=>{
+        initPlayer(parseInt(btn.dataset.index));
+        panel.style.transform="translateY(100%)";
+    };
+});
+
+/* SWIPE UP / DOWN */
+let startY=0;
+let endY=0;
+
+document.addEventListener("touchstart",e=>{
+    startY=e.touches[0].clientY;
+});
+
+document.addEventListener("touchend",e=>{
+    endY=e.changedTouches[0].clientY;
+    let diff=startY-endY;
+
+    if(Math.abs(diff)>60){
+        if(diff>0){
+            nextEpisode();   // swipe up
+        }else{
+            prevEpisode();   // swipe down
+        }
+    }
+});
+
+/* FORCE FULLSCREEN */
+setTimeout(()=>{
+    const el=document.documentElement;
+    if(el.requestFullscreen){
+        el.requestFullscreen().catch(()=>{});
+    }
+},800);
 
 });
 </script>
